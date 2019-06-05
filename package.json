@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@deck.gl/core": "^7.0.0-beta",
+    "@deck.gl/geo-layers": "^7.0.10",
     "@deck.gl/google-maps": "^7.0.0-beta",
     "@deck.gl/layers": "^7.0.0-beta",
     "express": "^4.17.1",
