@@ -208,24 +208,36 @@ async function getTrips() {
   // source: NYC Open Data 
   // https://data.cityofnewyork.us/Environment/2015-Street-Tree-Census-Tree-Data/pi5s-9p35
   const QUERY = '$where=within_circle(pickup_centroid_location,41.932875,-87.761911,2500) AND within_circle(dropoff_centroid_location,41.932875,-87.761911,2500) AND trip_start_timestamp!=trip_end_timestamp';
-  const TRIPS_URL = 'https://data.cityofchicago.org/resource/wrvz-psew.json?$limit=10&' + QUERY;
+  const TRIPS_URL = 'https://data.cityofchicago.org/resource/wrvz-psew.json?$limit=1000&' + QUERY;
   let trips = await fetch(TRIPS_URL).then(res => res.json());
   trips = await formatTrips(trips);
   return trips;
 }
 
 async function formatTrips (trips) {
+  trips = trips.filter(trip => {
+    if(trip.pickup_centroid_latitude !== trip.dropoff_centroid_latitude &&
+      trip.pickup_centroid_longitude !== trip.dropoff_centroid_longitude) {
+      return true;
+    }
+  })
   trips = trips.map(trip => {
-    let start_time = parseFloat(new Date(trip.trip_start_timestamp).getTime());
-    let end_time = (parseFloat(new Date(trip.trip_end_timestamp).getTime()) - start_time)/1000;
+    let start_time = Number(new Date(trip.trip_start_timestamp).getTime());
+    let end_time = Number(new Date(trip.trip_end_timestamp).getTime());
     return {
       'waypoints': [
-        [parseFloat(trip.pickup_centroid_latitude), parseFloat(trip.pickup_centroid_longitude), 0], 
-        [parseFloat(trip.dropoff_centroid_latitude), parseFloat(trip.dropoff_centroid_longitude), end_time],          
+        {
+          coords: [parseFloat(trip.pickup_centroid_longitude), parseFloat(trip.pickup_centroid_latitude)], 
+          timestamp: start_time
+        }, 
+        {
+          coords: [parseFloat(trip.dropoff_centroid_longitude), parseFloat(trip.dropoff_centroid_latitude)],
+          timestamp: end_time
+        },          
       ]
     }    
   });
-  trips.forEach(trip => console.log(trip.waypoints));
+  console.log(trips)
   return trips;
 }
 
@@ -240,11 +252,149 @@ function loadScript(url) {
   });
 }
 
-
+let test = [
+{
+waypoints: [
+{
+coordinates: [
+-122.39079879999997,
+37.7664413
+],
+timestamp: 1554772579000
+},
+{
+coordinates: [
+-122.3908298,
+37.7667706
+],
+timestamp: 1554772579009
+},
+{
+coordinates: [
+-122.39271759999997,
+37.7667484
+],
+timestamp: 1554772579054
+},
+{
+coordinates: [
+-122.3951341,
+37.7665964
+],
+timestamp: 1554772579092
+},
+{
+coordinates: [
+-122.409425,
+37.7779834
+],
+timestamp: 1554772579345
+},
+{
+coordinates: [
+-122.41318080000002,
+37.7750068
+],
+timestamp: 1554772579402
+},
+{
+coordinates: [
+-122.41619750000001,
+37.7774034
+],
+timestamp: 1554772579462
+},
+{
+coordinates: [
+-122.42135359999997,
+37.7770974
+],
+timestamp: 1554772579563
+},
+{
+coordinates: [
+-122.42620490000002,
+37.8010553
+],
+timestamp: 1554772579880
+},
+{
+coordinates: [
+-122.44484019999999,
+37.7989071
+],
+timestamp: 1554772580070
+},
+{
+coordinates: [
+-122.4493488,
+37.801993
+],
+timestamp: 1554772580117
+},
+{
+coordinates: [
+-122.44985459999998,
+37.8024803
+],
+timestamp: 1554772580120
+},
+{
+coordinates: [
+-122.45090290000002,
+37.8033639
+],
+timestamp: 1554772580127
+},
+{
+coordinates: [
+-122.45116330000002,
+37.8034643
+],
+timestamp: 1554772580130
+},
+{
+coordinates: [
+-122.44840979999998,
+37.8046164
+],
+timestamp: 1554772580166
+},
+{
+coordinates: [
+-122.44826899999998,
+37.8045327
+],
+timestamp: 1554772580176
+},
+{
+coordinates: [
+-122.44827479999998,
+37.8044851
+],
+timestamp: 1554772580181
+},
+{
+coordinates: [
+-122.44846849999999,
+37.8043839
+],
+timestamp: 1554772580186
+},
+{
+coordinates: [
+-122.44856720000001,
+37.8040182
+],
+timestamp: 1554772580200
+}
+]
+}
+]
 
 loadScript(GOOGLE_MAPS_API_URL).then(() => {
   const map = new google.maps.Map(document.getElementById('map'), {
-    center: {lat: 41.877162, lng: -87.629787},
+    center: {lat: 41.954027649, lng: -87.763399032},
     zoom: 14,
     styles: MAP_STYLES
   });
@@ -254,7 +404,8 @@ loadScript(GOOGLE_MAPS_API_URL).then(() => {
       new TripsLayer({
         id: 'trips-layer',
         data: TAXI_TRIPS,
-        getPath: d => d.waypoints,
+        getPath: d => d.waypoints.map(p => p.coords),
+        getTimestamps: d => d.waypoints.map(p => p.timestamp),
         getColor: [253, 128, 93],
         opacity: 0.8,
         widthMinPixels: 5,
@@ -266,3 +417,4 @@ loadScript(GOOGLE_MAPS_API_URL).then(() => {
   });
   overlay.setMap(map);
 });
+
