@@ -6,7 +6,6 @@ import {TripsLayer} from '@deck.gl/geo-layers';
 // Set your Google Maps API key here or via environment variable
 const GOOGLE_MAPS_API_KEY = process.env.GoogleMapsAPIKey; // eslint-disable-line
 const GOOGLE_MAPS_API_URL = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
-const TAXI_TRIPS = getTrips();
 const MAP_STYLES = [
   {
     "featureType": "administrative.land_parcel",
@@ -207,9 +206,10 @@ const MAP_STYLES = [
 async function getTrips() {
   // source: NYC Open Data 
   // https://data.cityofnewyork.us/Environment/2015-Street-Tree-Census-Tree-Data/pi5s-9p35
-  const QUERY = '$where=within_circle(pickup_centroid_location,41.932875,-87.761911,2500) AND within_circle(dropoff_centroid_location,41.932875,-87.761911,2500) AND trip_start_timestamp!=trip_end_timestamp';
-  const TRIPS_URL = 'https://data.cityofchicago.org/resource/wrvz-psew.json?$limit=1000&' + QUERY;
-  let trips = await fetch(TRIPS_URL).then(res => res.json());
+  const QUERY = '$where=within_circle(pickup_centroid_location,41.932875,-87.761911,1500) AND within_circle(dropoff_centroid_location,41.932875,-87.761911,1500) AND trip_start_timestamp!=trip_end_timestamp';
+  const TRIPS_URL = 'https://data.cityofchicago.org/resource/wrvz-psew.json?$limit=200&' + QUERY;
+  let trips = await fetch(TRIPS_URL)
+  trips = await trips.json();
   trips = await formatTrips(trips);
   return trips;
 }
@@ -221,17 +221,20 @@ async function formatTrips (trips) {
       return true;
     }
   })
-  trips = trips.map(trip => {
-    let start_time = Number(new Date(trip.trip_start_timestamp).getTime());
-    let end_time = Number(new Date(trip.trip_end_timestamp).getTime());
+  trips = trips.map(async (trip) => {
+    let start_time = new Date(trip.trip_start_timestamp).getTime();
+    let end_time = new Date(trip.trip_end_timestamp).getTime();
+    let pickup_coords = [trip.pickup_centroid_latitude, trip.pickup_centroid_longitude];
+    let dropoff_coords = [trip.dropoff_centroid_latitude, trip.dropoff_centroid_longitude]
+    // let waypoints = await getDirections(pickup_coords, dropoff_coords);
     return {
       'waypoints': [
         {
-          coords: [parseFloat(trip.pickup_centroid_longitude), parseFloat(trip.pickup_centroid_latitude)], 
+          coords: pickup_coords.reverse(), 
           timestamp: start_time
         }, 
         {
-          coords: [parseFloat(trip.dropoff_centroid_longitude), parseFloat(trip.dropoff_centroid_latitude)],
+          coords: dropoff_coords.reverse(),
           timestamp: end_time
         },          
       ]
@@ -239,6 +242,24 @@ async function formatTrips (trips) {
   });
   console.log(trips)
   return trips;
+}
+
+async function getDirections (start_coords, end_coords) {
+  const directionsService = new google.maps.DirectionsService();
+  const request = {
+    origin: new google.maps.LatLng(start_coords[0], start_coords[1]),
+    destination: new google.maps.LatLng(end_coords[0], end_coords[1]),
+    travelMode: 'DRIVING'
+  };
+  let directions =  new Promise((resolve, reject) => {
+    directionsService.route(request, (response, status) => {
+      if (status === 'OK') {
+        resolve(response);
+      }
+      reject(status);
+    });
+  });
+  return directions;
 }
 
 function loadScript(url) {
@@ -251,6 +272,36 @@ function loadScript(url) {
     script.onload = resolve;
   });
 }
+
+loadScript(GOOGLE_MAPS_API_URL).then(() => {
+  const map = new google.maps.Map(document.getElementById('map'), {
+    center: {lat: 41.954027649, lng: -87.763399032},
+    zoom: 14,
+    styles: MAP_STYLES
+  });
+
+  const directionsService = new google.maps.DirectionsService();
+
+  const TAXI_TRIPS = getTrips(directionsService);
+  const overlay = new GoogleMapsOverlay({
+    layers: [
+      new TripsLayer({
+        id: 'trips-layer',
+        data: TAXI_TRIPS,
+        getPath: d => d.waypoints.map(p => p.coords),
+        getTimestamps: d => d.waypoints.map(p => p.timestamp),
+        getColor: [253, 128, 93],
+        opacity: 0.8,
+        widthMinPixels: 5,
+        rounded: true,
+        trailLength: 200,
+        currentTime: 150
+      })
+    ]
+  });
+  overlay.setMap(map);
+});
+
 
 let test = [
 {
@@ -391,30 +442,3 @@ timestamp: 1554772580200
 ]
 }
 ]
-
-loadScript(GOOGLE_MAPS_API_URL).then(() => {
-  const map = new google.maps.Map(document.getElementById('map'), {
-    center: {lat: 41.954027649, lng: -87.763399032},
-    zoom: 14,
-    styles: MAP_STYLES
-  });
-
-  const overlay = new GoogleMapsOverlay({
-    layers: [
-      new TripsLayer({
-        id: 'trips-layer',
-        data: TAXI_TRIPS,
-        getPath: d => d.waypoints.map(p => p.coords),
-        getTimestamps: d => d.waypoints.map(p => p.timestamp),
-        getColor: [253, 128, 93],
-        opacity: 0.8,
-        widthMinPixels: 5,
-        rounded: true,
-        trailLength: 200,
-        currentTime: 0
-      })
-    ]
-  });
-  overlay.setMap(map);
-});
-
