@@ -6,7 +6,7 @@ import {TripsLayer} from '@deck.gl/geo-layers';
 // Set your Google Maps API key here or via environment variable
 const GOOGLE_MAPS_API_KEY = process.env.GoogleMapsAPIKey; // eslint-disable-line
 const GOOGLE_MAPS_API_URL = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-const MAP_CENTER = {lat: 1.276347, lng: 103.799532};
+const MAP_CENTER = {lat: 40.757870, lng: -73.985625};
 const MAP_STYLES = [
   {
     "featureType": "administrative.land_parcel",
@@ -204,69 +204,38 @@ const MAP_STYLES = [
   }
 ];
 
-async function getTrips(map) {
-  const PLACES_SERVICE = new google.maps.places.PlacesService(map);
+async function getPlaces(places_service) {
+  
   const OPTIONS = {
     location: new google.maps.LatLng(MAP_CENTER),
-    radius: '1000',
+    radius: '3000',
     type: ['restaurant']
   };
   let places_request = new Promise((resolve, reject) => {
-    PLACES_SERVICE.nearbySearch(OPTIONS, (res, status) => {
+    places_service.nearbySearch(OPTIONS, (res, status) => {
       if (status !== google.maps.places.PlacesServiceStatus.OK) {
         reject(status);
       }
       resolve(res)
     });
   });
-  let places = await places_request;
+  return places_request;
+}
+
+async function getTrips(places) {
   let trips = [];
   for (let i = 0; i < places.length; i++) {
     const START = places[i].geometry.location.lat() + ',' + places[i].geometry.location.lng();
     for (let j = i+1; j<places.length; j++) {
-      const END = places[j].geometry.location.lat() + ',' + places[j].geometry.location.lng();
-      let directions = await getDirections(START, END);
-      trips.push(directions);  
+      const END = places[j].geometry.location.lat() + ',' + places[j].geometry.location.lng();      
+      const DIRECTIONS = getDirections(START, END);
+      trips.push(DIRECTIONS);  
     }
-    
   }
-  // const START = `${MAP_CENTER.lat},${MAP_CENTER.lng}`;
-  // trips = Promise.all(trips.map(async(trip) => {
-  //   const END = `${trip.geometry.location.lat()},${trip.geometry.location.lng()}`;
-  //   return await getDirections(START, END);    
-  // }));
-  return await trips;
+  trips = await Promise.all(trips)
+  console.log(trips)
+  return trips;
 }
-
-// async function formatTrips (trips) {
-//   trips = trips.filter(trip => {
-//     if(trip.pickup_centroid_latitude !== trip.dropoff_centroid_latitude &&
-//       trip.pickup_centroid_longitude !== trip.dropoff_centroid_longitude) {
-//       return true;
-//     }
-//   })
-//   trips = trips.map(async (trip) => {
-//     let start_time = new Date(trip.trip_start_timestamp).getTime();
-//     let end_time = new Date(trip.trip_end_timestamp).getTime();
-//     let pickup_coords = [trip.pickup_centroid_latitude, trip.pickup_centroid_longitude];
-//     let dropoff_coords = [trip.dropoff_centroid_latitude, trip.dropoff_centroid_longitude]
-//     let waypoints = await getDirections(pickup_coords, dropoff_coords);
-//     return {
-//       'waypoints': [
-//         {
-//           coords: pickup_coords.reverse(), 
-//           timestamp: start_time
-//         }, 
-//         {
-//           coords: dropoff_coords.reverse(),
-//           timestamp: end_time
-//         },          
-//       ]
-//     }    
-//   });
-//   console.log(trips)
-//   return trips;
-// }
 
 async function getDirections (start, end) {
   let request = fetch(`http://localhost:1337/directions?start=${start}&end=${end}`)
@@ -286,47 +255,60 @@ function loadScript(url) {
   });
 }
 
-loadScript(GOOGLE_MAPS_API_URL).then(() => {
+async function start() {
+  await loadScript(GOOGLE_MAPS_API_URL);  
   const map = new google.maps.Map(document.getElementById('map'), {
     center: MAP_CENTER,
     zoom: 14,
     styles: MAP_STYLES
   });
-  let TRIPS = getTrips(map);    
-console.log(TRIPS)  
-  let current_time = 0;
-  const OVERLAY = new GoogleMapsOverlay({
-    layers: [
-      new TripsLayer({
-        id: 'trips-layer',
-        data: TRIPS,
-        getPath: d => d.segments,
-        getColor: [253, 128, 93],
-        opacity: 0.7,
-        widthMinPixels: 2,
-        rounded: true,
-        trailLength: 200,
-        currentTime: current_time
-      })
-    ]
-  });
-  OVERLAY.setMap(map);
+  const PLACES_SERVICE = new google.maps.places.PlacesService(map);
+  const PLACES = await getPlaces(PLACES_SERVICE);
+  const TRIPS = await getTrips(PLACES);
+
+}
+start();
+// loadScript(GOOGLE_MAPS_API_URL).then(() => {
+//   const map = new google.maps.Map(document.getElementById('map'), {
+//     center: MAP_CENTER,
+//     zoom: 14,
+//     styles: MAP_STYLES
+//   });
+//   let TRIPS = getTrips(map);
   
-  setInterval(()=> {
-    current_time+=1;
-    OVERLAY.setProps({layers: [
-      new TripsLayer({
-        id: 'trips-layer',
-        data: TRIPS,
-        getPath: d => d.segments,
-        getColor: [253, 128, 93],
-        opacity: 0.7,
-        widthMinPixels: 2,
-        rounded: true,
-        trailLength: 200,
-        currentTime: current_time
-      })
-      ]})
-    console.log(OVERLAY)
-  }, 30)
-});
+//   let current_time = 0;
+//   const OVERLAY = new GoogleMapsOverlay({
+//     layers: [
+//       new TripsLayer({
+//         id: 'trips-layer',
+//         data: TRIPS,
+//         getPath: d => d.segments,
+//         getColor: [253, 128, 93],
+//         opacity: 0.7,
+//         widthMinPixels: 2,
+//         rounded: true,
+//         trailLength: 10,
+//         currentTime: current_time
+//       })
+//     ]
+//   });
+//   OVERLAY.setMap(map);
+//   console.log(OVERLAY._overlay)
+//   setInterval(()=> {
+//     current_time+=1;
+//     OVERLAY.setProps({layers: [
+//       new TripsLayer({
+//         id: 'trips-layer',
+//         data: TRIPS,
+//         getPath: d => d.segments,
+//         getColor: [253, 128, 93],
+//         opacity: 0.7,
+//         widthMinPixels: 2,
+//         rounded: true,
+//         trailLength: 10,
+//         currentTime: current_time
+//       })
+//       ]})
+//     console.log(OVERLAY)
+//   }, 1000)
+// });
