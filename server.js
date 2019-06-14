@@ -16,15 +16,14 @@ app.get('/directions', async(req, res) => {
   const START = req.query.start.split(',');
   const END = req.query.end.split(',');
   const OPTIONS = {
-    origin: [START[0], START[1]],
-    destination: [END[0], END[1]],
-    avoid: 'highways',
+    origin: START,
+    destination: END,
     mode: 'driving'
   }
   let request = googleMapsClient.directions(OPTIONS).asPromise();
   let result = await request;
   result = result.json.routes[0].legs[0];
-  let segments = buildSegments(result.start_location, result.end_location, result.steps)
+  let segments = buildSegments(result.start_location, result.steps)
   let directions = {
     duration: result.duration.value,
     segments: segments
@@ -33,11 +32,10 @@ app.get('/directions', async(req, res) => {
   res.json(directions);
 });
 
-function buildSegments(start_coords, end_coords, steps) {
+function buildSegments(start_coords, steps) {
   segments = [];
   let timestamp = 0;
   segments.push([start_coords.lng, start_coords.lat, timestamp]);
-  
   steps.forEach(step => {
     timestamp += step.duration.value;
     segments.push([step.end_location.lng, step.end_location.lat, timestamp]);    

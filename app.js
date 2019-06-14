@@ -3,6 +3,10 @@ import {GoogleMapsOverlay} from '@deck.gl/google-maps';
 import {GeoJsonLayer, ScatterplotLayer} from '@deck.gl/layers';
 import {TripsLayer} from '@deck.gl/geo-layers';
 
+let map;
+let overlay;
+let trips;
+
 // Set your Google Maps API key here or via environment variable
 const GOOGLE_MAPS_API_KEY = process.env.GoogleMapsAPIKey; // eslint-disable-line
 const GOOGLE_MAPS_API_URL = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
@@ -208,7 +212,7 @@ async function getPlaces(places_service) {
   
   const OPTIONS = {
     location: new google.maps.LatLng(MAP_CENTER),
-    radius: '3000',
+    radius: '1600',
     type: ['restaurant']
   };
   let places_request = new Promise((resolve, reject) => {
@@ -232,8 +236,7 @@ async function getTrips(places) {
       trips.push(DIRECTIONS);  
     }
   }
-  trips = await Promise.all(trips)
-  console.log(trips)
+  trips = await Promise.all(trips);
   return trips;
 }
 
@@ -254,61 +257,36 @@ function loadScript(url) {
     script.onload = resolve;
   });
 }
+let current_time = 0;
+function render() {
+  overlay.setProps({layers: [
+    new TripsLayer({
+      id: 'trips-layer',
+      data: trips,
+      getPath: d => d.segments,
+      getColor: [253, 128, 93],
+      opacity: 0.7,
+      widthMinPixels: 2,
+      rounded: true,
+      trailLength: 100,
+      currentTime: current_time
+    })
+  ]});
+  current_time += 1;  
+  requestAnimationFrame(render)
+}
 
-async function start() {
+(async() => {
   await loadScript(GOOGLE_MAPS_API_URL);  
-  const map = new google.maps.Map(document.getElementById('map'), {
+  map = new google.maps.Map(document.getElementById('map'), {
     center: MAP_CENTER,
     zoom: 14,
     styles: MAP_STYLES
   });
   const PLACES_SERVICE = new google.maps.places.PlacesService(map);
   const PLACES = await getPlaces(PLACES_SERVICE);
-  const TRIPS = await getTrips(PLACES);
-
-}
-start();
-// loadScript(GOOGLE_MAPS_API_URL).then(() => {
-//   const map = new google.maps.Map(document.getElementById('map'), {
-//     center: MAP_CENTER,
-//     zoom: 14,
-//     styles: MAP_STYLES
-//   });
-//   let TRIPS = getTrips(map);
-  
-//   let current_time = 0;
-//   const OVERLAY = new GoogleMapsOverlay({
-//     layers: [
-//       new TripsLayer({
-//         id: 'trips-layer',
-//         data: TRIPS,
-//         getPath: d => d.segments,
-//         getColor: [253, 128, 93],
-//         opacity: 0.7,
-//         widthMinPixels: 2,
-//         rounded: true,
-//         trailLength: 10,
-//         currentTime: current_time
-//       })
-//     ]
-//   });
-//   OVERLAY.setMap(map);
-//   console.log(OVERLAY._overlay)
-//   setInterval(()=> {
-//     current_time+=1;
-//     OVERLAY.setProps({layers: [
-//       new TripsLayer({
-//         id: 'trips-layer',
-//         data: TRIPS,
-//         getPath: d => d.segments,
-//         getColor: [253, 128, 93],
-//         opacity: 0.7,
-//         widthMinPixels: 2,
-//         rounded: true,
-//         trailLength: 10,
-//         currentTime: current_time
-//       })
-//       ]})
-//     console.log(OVERLAY)
-//   }, 1000)
-// });
+  trips = await getTrips(PLACES);
+  overlay = new GoogleMapsOverlay();
+  overlay.setMap(map);  
+  render();
+})();
