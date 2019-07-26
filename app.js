@@ -263,7 +263,7 @@ function render() {
     new TripsLayer({
       id: 'trips-layer',
       data: trips,
-      getPath: d => d.segments,
+      getPath: d => console.log(d.segments),
       getColor: [253, 128, 93],
       opacity: 0.7,
       widthMinPixels: 2,
